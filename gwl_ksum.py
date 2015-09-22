@@ -5,13 +5,12 @@ from scipy import linalg
 
 def gwl_ksum(gatm):
 
-    from gwl_tools import chkherm, chkrnd
+    from gwl_tools import chkherm, chkrnd, chknloc
 
     eigs = np.zeros((gatm.nkpt,gatm.nbnd),dtype=np.float)
     evec = np.zeros((gatm.nkpt,gatm.nbnd,gatm.nbnd), dtype=np.complex)
     fdis = np.zeros((gatm.nkpt,gatm.nbnd),dtype=np.float)
 
-    # gatm.qre = gatm.qre * 0.5
     for ikpt in range(gatm.nkpt):
 
         # 1-P+Q
@@ -45,6 +44,7 @@ def gwl_ksum(gatm):
     if not(chkrnd(nmat)) : sys.exit(" Local density matrix is not REAL & DIAGONAL in gwl_ksum !\n")
     gatm.nloc = np.diag(nmat).real
     # make local occupation symmetrize
+    gatm.nloc = chknloc(gatm.nloc)
     gatm.nloc = gatm.symm.symmetrize(gatm.nloc)
     del nmat
 

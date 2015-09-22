@@ -30,5 +30,13 @@ def read_dft(filename_enk, filename_ovlp):
 
     return gatm
 
-
+def gen_bethe_kwt(eigs):
+    nkpt = eigs.shape[0]
+    norb = eigs.shape[1]
+    kwt  = np.zeros(nkpt,dtype=np.float)
+    wid  = np.absolute( eigs[0,0] - 0.0 )
+    for ikpt in range(nkpt):
+        kpt = 2.0*np.float(ikpt)/np.float(nkpt-1) - 1.0
+        kwt[ikpt] = 4.0*np.sqrt(1.0-kpt**2.0)/np.pi/np.float(nkpt)
+    return kwt
 

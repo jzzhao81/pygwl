@@ -92,9 +92,11 @@ def gwl_core(gatm):
 
     ini   = np.repeat(gatm.uj[0]*(np.sum(gatm.nloc)-0.5), gatm.norb)
     dltn  = lambda lamda: gwl_gennloc(lamda, gatm, hbsn, meta)
-    rslt  = optimize.root(dltn, ini, method='hybr', tol=1e-8)
+    rslt  = optimize.root(dltn, ini, method='lm', tol=1e-8)
     lamda = rslt.x
     if not(rslt.success) : 
+        print rslt
+        print
         sys.exit(" gwl_core loop does not converged !\n")
 
     # Ground state wave function

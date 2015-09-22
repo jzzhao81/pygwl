@@ -46,12 +46,25 @@ class corr_atom:
         return eimp
 
     def genfdis(self, eigs):
+        from gwl_constants import smear
         nkpt = eigs.shape[0]
         nbnd = eigs.shape[1]
         fdis = np.zeros((nkpt,nbnd),dtype=np.float)
-        for ikpt in range(nkpt):
-            for ibnd in range(nbnd):
-                fdis[ikpt,ibnd] = self.fermidis(eigs[ikpt,ibnd])
+
+        if smear.keys()[0] == 'fermi' :
+            for ikpt in range(nkpt):
+                for ibnd in range(nbnd):
+                    fdis[ikpt,ibnd] = self.fermidis(eigs[ikpt,ibnd],smear.values()[0])
+        elif smear.keys()[0] == 'gauss' :
+            for ikpt in range(nkpt):
+                for ibnd in range(nbnd):
+                    fdis[ikpt,ibnd] = self.gaussdis(eigs[ikpt,ibnd],smear.values()[0])
+        elif smear.keys()[0] == 'mp' :
+            for ikpt in range(nkpt):
+                for ibnd in range(nbnd):
+                    fdis[ikpt,ibnd] = self.mpdis(eigs[ikpt,ibnd],smear.values()[0])
+        else :
+            sys.exit(" Unsupport smear type ! \n")
         return fdis
 
     def gennloc(self, eigs, smat):
@@ -94,13 +107,30 @@ class corr_atom:
                 ntot += self.kwt[ikpt]*fdis[ikpt,ibnd]
         return ntot
 
-    def fermidis(self,ene):
-        from gwl_constants import beta
+    def fermidis(self,ene,beta):
         if ene <= 0.0 : 
             dist = 1.0/(np.exp(ene*beta)+1.0)
         else :
             dist = np.exp(-1.0*ene*beta)/(1.0+np.exp(-1.0*ene*beta))
         return dist
+
+    def mpfun(self,ene,mporder):
+        from scipy.special import eval_hermite
+        dsum = 0.0
+        for nn in range(mporder):
+            an = (-1.0)**float(nn)/(np.math.factorial(nn)*4.0**float(nn)*np.sqrt(np.pi))
+            dsum += an*eval_hermite(2*nn,ene)*np.exp(-ene**2.0)
+        return dsum
+
+    def mpdis(self,ene,mporder):
+        from scipy import integrate
+        fun = lambda x : self.mpfun(x,mporder)
+        dist = integrate.romberg(fun,-5.0,ene)
+        return 1.0-dist
+
+    def gaussdis(self,ene,fsgm):
+        from scipy.special import ndtr
+        return 1.0 - ndtr(ene/fsgm)
 
     def eigenstate(self):
         from atm_hmat import atom_umat, atom_hmat, dump_eigs
@@ -141,4 +171,33 @@ class corr_atom:
         print
 
         return diff
+
+if __name__ == '__main__':
+
+    import matplotlib.pyplot as plt
+    from scipy.special import ndtr
+
+    atom = corr_atom()
+
+    ene  = np.zeros(501)
+    mdis = np.zeros(501)
+    fdis = np.zeros(501)
+    gdis = np.zeros(501)
+
+    for idat in range(501):
+        # print -1.0+idat*0.02,atom.mpdis(-1.0+idat*0.02)
+        ene[idat] = -5.0+idat*0.02
+        mdis[idat] = atom.mpdis(ene[idat],2)
+
+    for idat in range(501):
+        fdis[idat] = atom.fermidis(ene[idat],5)
+
+    for idat in range(501):
+        gdis[idat] = atom.gaussdis(ene[idat],0.2)
+
+    plt.plot(ene,mdis,label="MP")
+    plt.plot(ene,fdis,label="Fermi")
+    plt.plot(ene,gdis,label="Gauss")
+    plt.legend()
+    plt.show()
 

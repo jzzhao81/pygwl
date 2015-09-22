@@ -4,9 +4,10 @@ from datetime import datetime
 
 def gwl_interface():
 
-    from gwl_read import read_dft
+    from gwl_read import read_dft, gen_bethe_kwt
     from gwl_symm import symmetry
     from gwl_constants import isym
+    from gwl_tools import chknloc
 
     np.set_printoptions(precision=3,linewidth=160,suppress=True,\
         formatter={'float': '{: 0.5f}'.format})
@@ -19,6 +20,7 @@ def gwl_interface():
 
     # read eigenvalue and eigenvector
     gatm = read_dft('output.enk', 'output.ovlp')
+    # gatm.kwt = gen_bethe_kwt(gatm.eigs)
     print " Read DFT input DONE !"
 
     # initialize symmetry
@@ -32,17 +34,16 @@ def gwl_interface():
     # generate impurity energy level
     gatm.eimp = gatm.geneimp(gatm.eigs, gatm.smat)
     gatm.eimp = gatm.symm.symmetrize(gatm.eimp)
-    gatm.eimp = gatm.symm.symmetrize(gatm.eimp)
     print " Impurity level from DFT :"
     print gatm.eimp
     # generate local density matrix
     gatm.nloc = gatm.gennloc(gatm.eigs, gatm.smat)
-    gatm.nloc = gatm.symm.symmetrize(gatm.nloc)
+    gatm.nloc = chknloc(gatm.nloc)
     gatm.nloc = gatm.symm.symmetrize(gatm.nloc)
     print " Local particle number from DFT :"
     print gatm.nloc
     print 
-
+    
     # atom eigenstate & eigen value
     gatm.eigenstate()
 
@@ -62,12 +63,14 @@ def gwl_mainloop(gatm):
     from gwl_constants import omax, omin
 
     ini  = np.append(gatm.elm,gatm.qre)
+    # rslt = optimize.root(gatm.outerloop,ini,method='linearmixing',options={'maxiter':omax})
+    # print " Changing to broyden1 method !\n"
     rslt = optimize.root(gatm.outerloop,ini,method='broyden1',\
-    options={'maxiter':omax,'ftol':omin,'jac_options':{'reduction_method':'svd'}})
+    options={'maxiter':omax,'ftol':omin,'jac_options':{'reduction_method':'simple'}})
     
     if not(rslt.success) :
         print rslt
-        sys.exit(" Pygwl main does not converge !\n")
+        print  " Pygwl main does not converge ! Try Linear-Mixing !\n"
 
     gatm.elm = rslt.x[:gatm.norb]
     gatm.qre = rslt.x[gatm.norb:]

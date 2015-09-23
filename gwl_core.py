@@ -24,10 +24,6 @@ def gwl_core(gatm):
                 mfck[icfg] *= gatm.nloc[iorb]
 
     fmat = np.dot( np.linalg.inv(gatm.avec),np.dot(np.diag(mfck),gatm.avec) )
-    # if not(chkrnd(fmat)) : 
-    #     print fmat.real
-    #     print
-    #     sys.exit(" <G|m|G> should be REAL & DIAGONAL in this code !\n")
     mgmm = np.diag( fmat ).real
     del fmat
 

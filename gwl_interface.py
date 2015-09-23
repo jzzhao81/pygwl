@@ -60,17 +60,25 @@ def gwl_mainloop(gatm):
 
     import sys
     from scipy import optimize
-    from gwl_constants import omax, omin
+    from gwl_constants import mixer
 
     ini  = np.append(gatm.elm,gatm.qre)
-    # rslt = optimize.root(gatm.outerloop,ini,method='linearmixing',options={'maxiter':omax})
-    # print " Changing to broyden1 method !\n"
-    rslt = optimize.root(gatm.outerloop,ini,method='broyden1',\
-    options={'maxiter':omax,'ftol':omin,'jac_options':{'reduction_method':'simple'}})
-    
+
+    if   mixer.keys()[0] == 'broyden1' :
+        rslt = optimize.root(gatm.outerloop,ini,method='broyden1',\
+        options={'maxiter':mixer.values()[0][0],'ftol':mixer.values()[0][1],\
+        'jac_options':{'reduction_method':'simple'}})
+    elif mixer.keys()[0] == 'linearmixing' :
+        rslt = optimize.root(gatm.outerloop,ini,method='linearmixing',
+        options={'maxiter':mixer.values()[0][0],'ftol':mixer.values()[0][1]})
+    elif mixer.keys()[0] == 'lm' :
+        rslt = optimize.root(gatm.outerloop,ini,method='lm',
+        options={'maxiter':mixer.values()[0][0],'ftol':mixer.values()[0][1]})
+
     if not(rslt.success) :
+        print
         print rslt
-        print  " Pygwl main does not converge ! Try Linear-Mixing !\n"
+        print  " Pygwl main does not converge !\n Try another mixer method !\n"
 
     gatm.elm = rslt.x[:gatm.norb]
     gatm.qre = rslt.x[gatm.norb:]

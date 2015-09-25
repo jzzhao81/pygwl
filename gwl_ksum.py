@@ -45,7 +45,7 @@ def gwl_ksum(gatm):
     gatm.nloc = np.diag(nmat).real
     # make local occupation symmetrize
     gatm.nloc = chknloc(gatm.nloc)
-    gatm.nloc = gatm.symm.symmetrize(gatm.nloc)
+    gatm.nloc = gatm.osym.symmetrize(gatm.nloc)
     del nmat
 
     # get dedr

@@ -13,6 +13,18 @@ class symmetry:
         
         self.countsym()
 
+    def defsym(self, data):
+        eps = 1e-5
+        self.data = []
+        for indx,nume in enumerate(data):
+            if (np.absolute(nume-data[:indx])<eps).any() :
+                self.data.append(np.where(np.absolute(nume-data[:indx])<eps)[0][0])
+            else : 
+                self.data.append(indx)
+        self.ntot = len(self.data)
+        self.countsym()
+        return
+
     def countsym(self):
 
         # Check number of different orbitals
@@ -36,6 +48,8 @@ class symmetry:
                     self.indx[isym].append(idat)
                     self.npsy[isym] += 1
 
+        return
+
     def symmetrize(self, inp):
 
         if inp.shape[0] != self.ntot :
@@ -51,19 +65,16 @@ class symmetry:
         for isym in range(self.nsym):
             for idat in range(self.npsy[isym]):
                 out[self.indx[isym][idat]] = smat[isym]
-
         return out
+
 
 def main():
 
-    symm = symmetry(data=[1,1,2,2,3,3])
-    print symm.ntot, symm.data
+    symm = symmetry()
+    symm.defsym(np.array([-1.0,-1.0, 0.0, 0.0, 0.0, 1.0, 1.0,1.0,1.0]))
 
     symm.countsym()
     print symm.nsym, symm.indx, symm.flag, symm.npsy
-
-    data = np.array([0.3, 0.6, 0.7, 0.7, 0.8, 1.0])
-    print symm.symmetrize(data)
 
 if __name__ == "__main__" :
 

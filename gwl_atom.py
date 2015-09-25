@@ -81,6 +81,13 @@ class corr_atom:
         del nmat
         return nloc
 
+    def genudc(self,nloc):
+        from gwl_constants import nudc
+        norb   = nloc.shape[0]
+        udc    = np.zeros(norb, dtype=np.float)
+        udc[:] = self.uj[0]*(nudc-0.5)-self.uj[2]*(nudc-0.5)
+        return udc
+
     def prjloc(self, imat, smat):
         omat = np.dot( np.dot(smat, imat), smat.transpose().conj() )
         return omat
@@ -145,6 +152,44 @@ class corr_atom:
         del umat, hmat
         return
 
+    # determine degenerate atomic energy eigenstate
+    def degenerate(self):
+        from atm_hmat import sort_basis
+        bsort = sort_basis(self.norb)
+        nsort = []
+        inew  = []
+        for basis in bsort :
+            eigs = []
+            symm = symmetry()
+            conf = []      
+            for icfg in range(self.ncfg):
+                idx = np.where( np.absolute(self.avec[:,icfg])>1e-8 )[0]
+                test = [(jdx in basis) for jdx in idx]
+                if sum(test) > 0 :
+                    eigs.append(self.aeig[icfg]); conf.append(icfg)
+            symm.defsym(eigs)
+            for isym in range(symm.nsym):
+                data = []
+                for idat in range(symm.npsy[isym]):
+                    data.append(conf[symm.indx[isym][idat]])
+                nsort.append(data)
+            for icfg in symm.data : inew.append(conf[icfg])
+
+        self.asym = symmetry(inew)
+        self.cfg2sym = np.zeros(self.ncfg,dtype=int)
+        for icfg in range(self.ncfg):
+            self.cfg2sym[icfg] = self.getindex(nsort,icfg)
+        self.nasy = self.asym.nsym
+        del bsort, nsort, inew, eigs, symm, conf, self.asym
+        return
+
+    # get symmetry index from configuration index
+    def getindex(self,sort,inp):
+        status = 0
+        for isym, sublist in enumerate(sort):
+            if inp in sublist: return isym
+        return -1
+
     def outerloop(self,inp):
         from gwl_ksum import gwl_ksum
         from gwl_core import gwl_core
@@ -166,8 +211,10 @@ class corr_atom:
 
         self.iter += 1
         print " diff :"
-        print diff[:self.norb]
-        print diff[self.norb:]
+        print diff[0:self.norb:2]
+        print diff[1:self.norb:2]
+        print diff[self.norb+0::2]
+        print diff[self.norb+1::2]
         print
 
         return diff

@@ -116,6 +116,16 @@ def atom_hmat(eimp, umat):
 
     return hmat
 
+# sort configuration according to occupation
+def sort_basis(norb):
+    ncfg = 2**norb
+    out  = [[] for ii in range(norb+1)]
+    for icfg in range(ncfg):
+        code=map(int, format(icfg,"0"+str(norb)+"b"))
+        ntot=sum(code)
+        out[ntot].append(icfg)
+    return out
+
 def dump_umat(umat):
 
     indx = np.where( np.absolute(umat) > 1e-8 )
@@ -180,6 +190,9 @@ if __name__ == "__main__" :
     nspn = 2
     norb = nbnd * nspn
     ncfg = 2**norb
+
+    dtmn_basis(norb)
+    exit()
 
     dump_basis(norb)
     

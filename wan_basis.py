@@ -214,7 +214,7 @@ def complex2real(ll,ns):
         tran[0:norb:ns, 0:norb:ns] = temp
         tran[1:norb:ns, 1:norb:ns] = temp
     else :
-        print " Unsupported ns in wan_complex2real ! "
+        print " Unsupported ns in wan_basis.complex2real ! "
         print
 
     return tran

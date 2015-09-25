@@ -24,28 +24,40 @@ def gwl_interface():
     print " Read DFT input DONE !"
 
     # initialize symmetry
-    gatm.symm = symmetry(np.array(isym))
+    gatm.osym = symmetry(np.array(isym))
     
     # search chemical potential
-    gatm.mu = gatm.searchmu(gatm.eigs)
-    print " Chemical potential from DFT :", ("%10.5f") %(gatm.mu)
+    gatm.mu   = gatm.searchmu(gatm.eigs)
     gatm.eigs -= gatm.mu
 
     # generate impurity energy level
     gatm.eimp = gatm.geneimp(gatm.eigs, gatm.smat)
-    gatm.eimp = gatm.symm.symmetrize(gatm.eimp)
-    print " Impurity level from DFT :"
-    print gatm.eimp
+    gatm.eimp = gatm.osym.symmetrize(gatm.eimp)
     # generate local density matrix
     gatm.nloc = gatm.gennloc(gatm.eigs, gatm.smat)
     gatm.nloc = chknloc(gatm.nloc)
-    gatm.nloc = gatm.symm.symmetrize(gatm.nloc)
-    print " Local particle number from DFT :"
-    print gatm.nloc
-    print 
-    
+    gatm.nloc = gatm.osym.symmetrize(gatm.nloc)
     # atom eigenstate & eigen value
     gatm.eigenstate()
+    # determine degenerate atomic configuration
+    gatm.degenerate()
+
+    # Double counting
+    gatm.udc  = gatm.genudc(gatm.nloc)
+    gatm.elm  = np.copy(gatm.udc)
+
+    print " Chemical potential from DFT :", ("%10.5f") %(gatm.mu)
+    print " Total electron number :", ("%10.5f") %(gatm.ntot)
+    print " Impurity level from DFT :"
+    print gatm.eimp[0::2]
+    print gatm.eimp[1::2]
+    print " Local particle number from DFT :", ("%10.5f") %(np.sum(gatm.nloc))
+    print gatm.nloc[0::2]
+    print gatm.nloc[1::2]
+    print " Double Counting :"
+    print gatm.udc[0::2]
+    print gatm.udc[1::2]
+    print
 
     # Enter Gutzwiller main loop
     gwl_mainloop(gatm)
@@ -89,13 +101,17 @@ def gwl_dumprslt(gatm):
 
     print ' Final results : '
     print ' Elm :'
-    print gatm.elm
+    print gatm.elm[0::2]
+    print gatm.elm[1::2]
     print ' Qre :'
-    print gatm.qre
+    print gatm.qre[0::2]
+    print gatm.qre[1::2]
     print ' Nloc :'
-    print gatm.nloc
+    print gatm.nloc[0::2]
+    print gatm.nloc[1::2]
     print ' Z :'
-    print (gatm.qre)**2.0
+    print (gatm.qre[0::2])**2.0
+    print (gatm.qre[1::2])**2.0
     print 
     print ' Pygwl finished @ ', datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     print

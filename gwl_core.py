@@ -9,11 +9,11 @@ def gwl_core(gatm):
 
     # mfck = |I><I|, mgmm = |G><G|
     mfck = np.ones(gatm.ncfg, dtype=np.float)
-    mgmm = np.zeros(gatm.ncfg, dtype=np.float)
-    meta = np.zeros((gatm.norb,gatm.ncfg), dtype=np.float)
+    mgmm = np.zeros(gatm.nasy, dtype=np.float)
+    meta = np.zeros((gatm.norb,gatm.nasy), dtype=np.float)
     fadd = np.zeros((gatm.norb,gatm.ncfg,gatm.ncfg), dtype=np.float)
     frmv = np.zeros((gatm.norb,gatm.ncfg,gatm.ncfg), dtype=np.float)
-    hbsn = np.zeros((gatm.ncfg,gatm.ncfg), dtype=np.complex)
+    hbsn = np.zeros((gatm.nasy,gatm.nasy), dtype=np.complex)
 
     for icfg in range(gatm.ncfg):
         code = format(icfg,'0'+str(gatm.norb)+'b')
@@ -23,20 +23,21 @@ def gwl_core(gatm):
             else :
                 mfck[icfg] *= gatm.nloc[iorb]
 
-    fmat = np.dot( np.linalg.inv(gatm.avec),np.dot(np.diag(mfck),gatm.avec) )
-    mgmm = np.diag( fmat ).real
-    del fmat
-
+    mgmm = np.diag(np.dot(np.linalg.inv(gatm.avec),np.dot(np.diag(mfck),gatm.avec))).real
+    fmat = np.zeros( gatm.nasy, dtype=np.float )
+    for icfg in range(gatm.ncfg):
+        isym = gatm.cfg2sym[icfg]
+        fmat[isym] += mgmm[icfg]
+    
     # N = Tr\psi\psi n
     for iorb in range(gatm.norb):
         for jcfg in range(gatm.ncfg):
             code = format(jcfg,'0'+str(gatm.norb)+'b')
             if code[iorb] == '0' : continue
             for icfg in range(gatm.ncfg):
+                isym=gatm.cfg2sym[icfg]
                 zz = np.absolute(gatm.avec[jcfg,icfg])
-                if zz < 1e-8 : continue
-                meta[iorb,icfg] += zz*zz*float(code[iorb])*mfck[jcfg]
-
+                meta[iorb,isym] += zz*zz*float(code[iorb])*mfck[jcfg]
     # f^\dag
     for iorb in range(gatm.norb):
         for jcfg in range(gatm.ncfg):
@@ -71,20 +72,23 @@ def gwl_core(gatm):
     # construct Boson Hamiltonian in atomic eigen state
     # Add atomic eigen value
     for icfg in range(gatm.ncfg):
-        hbsn[icfg,icfg] = mgmm[icfg] * gatm.aeig[icfg]
+        isym=gatm.cfg2sym[icfg]
+        hbsn[isym,isym] += mgmm[icfg]*gatm.aeig[icfg]
 
     for iorb in range(gatm.norb):
         for icfg in range(gatm.ncfg):
             for jcfg in range(gatm.ncfg):
-                hbsn[icfg,jcfg] += gatm.dedr[iorb]*fadd[iorb,icfg,jcfg]*frmv[iorb,jcfg,icfg]
-                hbsn[jcfg,icfg] += gatm.dedr[iorb]*fadd[iorb,icfg,jcfg]*frmv[iorb,jcfg,icfg]
+                isym = gatm.cfg2sym[icfg]
+                jsym = gatm.cfg2sym[jcfg]
+                hbsn[isym,jsym] += gatm.dedr[iorb]*fadd[iorb,icfg,jcfg]*frmv[iorb,jcfg,icfg]
+                hbsn[jsym,isym] += gatm.dedr[iorb]*fadd[iorb,icfg,jcfg]*frmv[iorb,jcfg,icfg]
 
-    for icfg in range(gatm.ncfg):
-        for jcfg in range(gatm.ncfg):
-            hbsn[icfg,jcfg] /= np.sqrt(mgmm[icfg]*mgmm[jcfg])
+    for isym in range(gatm.nasy):
+        for jsym in range(gatm.nasy):
+            hbsn[isym,jsym] /= np.sqrt(fmat[isym]*fmat[jsym])
 
-    for icfg in range(gatm.ncfg):
-        meta[:,icfg] /= mgmm[icfg]
+    for isym in range(gatm.nasy):
+        meta[:,isym] /= fmat[isym]
 
     ini   = np.repeat(gatm.uj[0]*(np.sum(gatm.nloc)-0.5), gatm.norb)
     dltn  = lambda lamda: gwl_gennloc(lamda, gatm, hbsn, meta)
@@ -96,9 +100,11 @@ def gwl_core(gatm):
         sys.exit(" gwl_core loop does not converged !\n")
 
     # Ground state wave function
-    gwf   = gwl_gwf(lamda, gatm, hbsn, meta)
+    wtemp = gwl_gwf(lamda, gatm, hbsn, meta)
+    gwf   = np.zeros(gatm.ncfg,dtype=np.complex)
     for icfg in range(gatm.ncfg):
-        gwf[icfg] /= np.sqrt(mgmm[icfg])
+        isym = gatm.cfg2sym[icfg]
+        gwf[icfg] = wtemp[isym]/np.sqrt(fmat[isym])
 
     gatm.qre[:] = 0.0
     for iorb in range(gatm.norb):
@@ -115,19 +121,24 @@ def gwl_core(gatm):
             (gatm.nloc[iorb]-0.5)/(gatm.nloc[iorb]*(1.0-gatm.nloc[iorb]))
         gatm.elm[iorb] = nume + lamda[iorb] - gatm.eimp[iorb]
 
-    gatm.qre = gatm.symm.symmetrize(gatm.qre)
-    gatm.elm = gatm.symm.symmetrize(gatm.elm)
+    gatm.qre = gatm.osym.symmetrize(gatm.qre)
+    gatm.elm = gatm.osym.symmetrize(gatm.elm)
 
     print ' gatm.dedr :'
-    print gatm.dedr
+    print gatm.dedr[0::2]
+    print gatm.dedr[1::2]
     print ' gatm.elm :'
-    print gatm.elm
+    print gatm.elm[0::2]
+    print gatm.elm[1::2]
     print ' gatm.qre :'
-    print gatm.qre
+    print gatm.qre[0::2]
+    print gatm.qre[1::2]
     print ' gatm.eimp :'
-    print gatm.eimp
-    print ' gatm.nloc :'
-    print gatm.nloc
+    print gatm.eimp[0::2]
+    print gatm.eimp[1::2]
+    print ' gatm.nloc :',(" %10.5f") %(np.sum(gatm.nloc))
+    print gatm.nloc[0::2]
+    print gatm.nloc[1::2]
 
     return
 
@@ -136,18 +147,18 @@ def gwl_gennloc(lamda, gatm, hbsn, meta):
     from scipy import linalg
 
     hnew = np.copy(hbsn)
-    for icfg in range(gatm.ncfg):
+    for isym in range(gatm.nasy):
         ceff = 0.0
         for iorb in range(gatm.norb):
-            ceff += -lamda[iorb] * meta[iorb,icfg]
-        hnew[icfg,icfg] += ceff
+            ceff += -lamda[iorb] * meta[iorb,isym]
+        hnew[isym,isym] += ceff
 
     eigs, evec = linalg.eigh(hnew)
 
     nnew = np.zeros(gatm.norb, dtype=np.float)
     for iorb in range(gatm.norb):
-        for icfg in range(gatm.ncfg):
-            nnew[iorb] += (meta[iorb,icfg]*evec[icfg,0]**2.0).real
+        for isym in range(gatm.nasy):
+            nnew[iorb] += (meta[iorb,isym]*evec[isym,0]**2.0).real
 
     # make new local occupation symmetrized
     # nnew = gatm.symm.symmetrize(nnew)
@@ -159,11 +170,11 @@ def gwl_gwf(lamda, gatm, hbsn, meta):
     from scipy import linalg
 
     hnew = np.copy(hbsn)
-    for icfg in range(gatm.ncfg):
+    for isym in range(gatm.nasy):
         ceff = 0.0
         for iorb in range(gatm.norb):
-            ceff += -lamda[iorb] * meta[iorb,icfg]
-        hnew[icfg,icfg] += ceff
+            ceff += -lamda[iorb] * meta[iorb,isym]
+        hnew[isym,isym] += ceff
 
     eigs, evec = linalg.eigh(hnew)
 

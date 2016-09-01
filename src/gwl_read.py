@@ -7,6 +7,7 @@ Created on Mon Sep  7 10:22:22 2015
 
 import numpy as np
 from   gwl_atom import corr_atom
+from   gwl_tools import searchmu
 
 def read_dft(filename_enk, filename_ovlp):
 
@@ -18,15 +19,28 @@ def read_dft(filename_enk, filename_ovlp):
     ntot = float(finp.readline().split()[0])
     finp.close()
 
-    data = np.loadtxt(filename_enk, skiprows=5, comments="#", usecols=[1])
+    # read eigen values
+    data = np.loadtxt(filename_enk,  skiprows=5, comments="#", usecols=[1])
     eigs = data.reshape(nkpt,nbnd)
 
+    # read projection
     data = np.loadtxt(filename_ovlp, skiprows=5, comments="#", usecols=[2,3])
-    ovlp = (data[:,0] + 1j*data[:,1]).reshape(nkpt,norb,nbnd)
+    ovlp = (data[:,0] + 1j*data[:,1]).reshape(nkpt,norb*natm,nbnd)
 
-    gatm = corr_atom(nkpt,nbnd,norb,ntot)
-    gatm.eigs = eigs
-    gatm.smat = ovlp
+    # search chemical potential
+    kwt = np.repeat(1.0/np.float(nkpt), nkpt)
+    mu_orig  = searchmu(eigs, ntot, kwt)
+    print
+    print " Chemical potential from DFT :", ("%10.5f") %(mu_orig)
+    print " Total electron number :", ("%10.5f") %(ntot)
+    print
+    eigs -= mu_orig
+
+    gatm = []
+    for iatm in range(natm):
+        gatm.append( corr_atom(nkpt,nbnd,norb,ntot) )
+        gatm[iatm].eigs = eigs
+        gatm[iatm].smat = ovlp[:,norb*iatm:norb*(iatm+1),:]
 
     return gatm
 

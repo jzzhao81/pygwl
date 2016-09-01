@@ -12,9 +12,8 @@ def gwl_interface():
     np.set_printoptions(precision=3,linewidth=160,suppress=True,\
         formatter={'float': '{: 0.5f}'.format})
 
-    print 
+    print
     print " Pygwl begin @ ", datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    print 
 
     error = 0
 
@@ -22,45 +21,41 @@ def gwl_interface():
     gatm = read_dft('output.enk', 'output.ovlp')
     # gatm.kwt = gen_bethe_kwt(gatm.eigs)
     print " Read DFT input DONE !"
+    natm = len(gatm)
 
-    # initialize symmetry
-    gatm.osym = symmetry(np.array(isym))
-    
-    # search chemical potential
-    gatm.mu   = gatm.searchmu(gatm.eigs)
-    gatm.eigs -= gatm.mu
+    # Loop for atoms
+    for iatm in range(natm):
+        # initialize symmetry
+        gatm[iatm].osym = symmetry(np.array(isym[iatm]))
 
-    # generate impurity energy level
-    gatm.eimp = gatm.geneimp(gatm.eigs, gatm.smat)
-    gatm.eimp = gatm.osym.symmetrize(gatm.eimp)
-    # generate local density matrix
-    gatm.nloc = gatm.gennloc(gatm.eigs, gatm.smat)
-    gatm.nloc = chknloc(gatm.nloc)
-    gatm.nloc = gatm.osym.symmetrize(gatm.nloc)
-    # atom eigenstate & eigen value
-    gatm.eigenstate()
-    # determine degenerate atomic configuration
-    gatm.degenerate()
+    for iatm in range(natm):
 
-    # Double counting
-    gatm.udc  = gatm.genudc(gatm.nloc)
-    gatm.elm  = np.copy(gatm.udc)
+        # generate impurity energy level
+        gatm[iatm].eimp = gatm[iatm].geneimp(gatm[iatm].eigs, gatm[iatm].smat)
+        gatm[iatm].eimp = gatm[iatm].osym.symmetrize(gatm[iatm].eimp)
+        # generate local density matrix
+        gatm[iatm].nloc = gatm[iatm].gennloc(gatm[iatm].eigs, gatm[iatm].smat)
+        gatm[iatm].nloc = chknloc(gatm[iatm].nloc)
+        gatm[iatm].nloc = gatm[iatm].osym.symmetrize(gatm[iatm].nloc)
+        # atom eigenstate & eigen value
+        gatm[iatm].eigenstate()
+        # determine degenerate atomic configuration
+        gatm[iatm].degenerate()
 
-    print " Chemical potential from DFT :", ("%10.5f") %(gatm.mu)
-    print " Total electron number :", ("%10.5f") %(gatm.ntot)
+        # Double counting
+        gatm[iatm].udc  = gatm[iatm].genudc(gatm[iatm].nloc)
+        gatm[iatm].elm  = np.copy(gatm[iatm].udc)
+
+
     print " Impurity level from DFT :"
-    print gatm.eimp[0::2]
-    print gatm.eimp[1::2]
-    print " Local particle number from DFT :", ("%10.5f") %(np.sum(gatm.nloc))
-    print gatm.nloc[0::2]
-    print gatm.nloc[1::2]
+    for iatm in range(natm): print gatm[iatm].eimp
+    print " Local particle number from DFT :", ("%10.5f") %(np.sum(gatm[iatm].nloc))
+    for iatm in range(natm): print gatm[iatm].nloc
     print " Double Counting :"
-    print gatm.udc[0::2]
-    print gatm.udc[1::2]
-    print
+    for iatm in range(natm): print gatm[iatm].udc
 
     # Enter Gutzwiller main loop
-    gwl_mainloop(gatm)
+    gatm = gwl_mainloop(gatm)
 
     # Dump Gutzwiller results
     gwl_dumprslt(gatm)
@@ -74,45 +69,98 @@ def gwl_mainloop(gatm):
     from scipy import optimize
     from gwl_constants import mixer
 
-    ini  = np.append(gatm.elm,gatm.qre)
+    # number of atoms
+    natm = len(gatm)
 
+    ini  = []
+    for iatm in range(natm):
+        ini.append(np.append(gatm[iatm].elm,gatm[iatm].qre))
+    ini = np.array(ini)
+    print
+
+    outr = lambda enq : gwl_outerloop(enq, gatm)
     if   mixer.keys()[0] == 'broyden1' :
-        rslt = optimize.root(gatm.outerloop,ini,method='broyden1',\
+        rslt = optimize.root(outr,ini,method='broyden1',\
         options={'maxiter':mixer.values()[0][0],'ftol':mixer.values()[0][1],\
         'jac_options':{'reduction_method':'simple'}})
     elif mixer.keys()[0] == 'linearmixing' :
-        rslt = optimize.root(gatm.outerloop,ini,method='linearmixing',
+        rslt = optimize.root(outr,ini,method='linearmixing',
         options={'maxiter':mixer.values()[0][0],'ftol':mixer.values()[0][1]})
     elif mixer.keys()[0] == 'lm' :
-        rslt = optimize.root(gatm.outerloop,ini,method='lm',
+        rslt = optimize.root(outr,ini,method='lm',
         options={'maxiter':mixer.values()[0][0],'ftol':mixer.values()[0][1]})
+    else :
+        sys.exit(' Mixer error :', mixer.keys()[0] )
 
     if not(rslt.success) :
         print
         print rslt
         print  " Pygwl main does not converge !\n Try another mixer method !\n"
 
-    gatm.elm = rslt.x[:gatm.norb]
-    gatm.qre = rslt.x[gatm.norb:]
 
-    return
+    for iatm in range(natm):
+        gatm[iatm].elm = rslt.x[iatm][:gatm[iatm].norb]
+        gatm[iatm].qre = rslt.x[iatm][gatm[iatm].norb:]
+
+    return gatm
+
+def gwl_outerloop(inp, gatm):
+
+    from gwl_ksum import gwl_ksum
+    from gwl_core import gwl_core
+
+    # number of atoms from input
+    natm = len(gatm)
+
+    # Elm & Qvec from last loop
+    eold = []; qold = []
+
+    print
+    print " Iter  :", gatm[0].iter
+    for iatm in range(natm):
+        gatm[iatm].elm = np.copy(inp[iatm][:gatm[iatm].norb])
+        gatm[iatm].qre = np.copy(inp[iatm][gatm[iatm].norb:])
+        eold.append( np.copy(gatm[iatm].elm) )
+        qold.append( np.copy(gatm[iatm].qre) )
+
+    # k summation
+    gatm = gwl_ksum(gatm)
+
+    # inner loop
+    diff = []
+    for iatm in range(natm):
+
+        print ' Inner loop for atom :', iatm+1
+        gatm[iatm].gwl_core()
+
+        diff = np.append(diff, np.append(gatm[iatm].elm-eold[iatm],gatm[iatm].qre-qold[iatm]))
+
+        gatm[iatm].iter += 1
+        print " diff :"
+        print gatm[iatm].elm-eold[iatm]
+        print gatm[iatm].qre-qold[iatm]
+
+    return diff
 
 def gwl_dumprslt(gatm):
 
+    # number of correlated atoms
+    natm = len(gatm)
+
     print ' Final results : '
     print ' Elm :'
-    print gatm.elm[0::2]
-    print gatm.elm[1::2]
+    for iatm in range(natm):
+        print gatm[iatm].elm
     print ' Qre :'
-    print gatm.qre[0::2]
-    print gatm.qre[1::2]
+    for iatm in range(natm):
+        print gatm[iatm].qre
     print ' Nloc :'
-    print gatm.nloc[0::2]
-    print gatm.nloc[1::2]
+    for iatm in range(natm):
+        print gatm[iatm].nloc
     print ' Z :'
-    print (gatm.qre[0::2])**2.0
-    print (gatm.qre[1::2])**2.0
-    print 
+    for iatm in range(natm):
+        print (gatm[iatm].qre)**2.0
+    print
     print ' Pygwl finished @ ', datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     print
     print

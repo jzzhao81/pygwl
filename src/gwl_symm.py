@@ -53,6 +53,7 @@ class symmetry:
     def symmetrize(self, inp):
 
         if inp.shape[0] != self.ntot :
+            print inp.shape[0], self.ntot
             sys.exit(" Input data size is wrong !\n")
 
         smat = np.zeros(self.nsym, dtype=np.float)

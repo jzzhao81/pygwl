@@ -28,7 +28,7 @@ def gwl_core(gatm):
     for icfg in range(gatm.ncfg):
         isym = gatm.cfg2sym[icfg]
         fmat[isym] += mgmm[icfg]
-    
+
     # N = Tr\psi\psi n
     for iorb in range(gatm.norb):
         for jcfg in range(gatm.ncfg):
@@ -94,7 +94,7 @@ def gwl_core(gatm):
     dltn  = lambda lamda: gwl_gennloc(lamda, gatm, hbsn, meta)
     rslt  = optimize.root(dltn, ini, method='lm', tol=1e-8)
     lamda = rslt.x
-    if not(rslt.success) : 
+    if not(rslt.success) :
         print rslt
         print
         sys.exit(" gwl_core loop does not converged !\n")
@@ -153,12 +153,12 @@ def gwl_gennloc(lamda, gatm, hbsn, meta):
             ceff += -lamda[iorb] * meta[iorb,isym]
         hnew[isym,isym] += ceff
 
-    eigs, evec = linalg.eigh(hnew)
+    etmp, vtmp = linalg.eigh(hnew)
 
     nnew = np.zeros(gatm.norb, dtype=np.float)
     for iorb in range(gatm.norb):
         for isym in range(gatm.nasy):
-            nnew[iorb] += (meta[iorb,isym]*evec[isym,0]**2.0).real
+            nnew[iorb] += (meta[iorb,isym]*vtmp[isym,0]**2.0).real
 
     # make new local occupation symmetrized
     # nnew = gatm.symm.symmetrize(nnew)
@@ -176,7 +176,7 @@ def gwl_gwf(lamda, gatm, hbsn, meta):
             ceff += -lamda[iorb] * meta[iorb,isym]
         hnew[isym,isym] += ceff
 
-    eigs, evec = linalg.eigh(hnew)
+    etmp, vtmp = linalg.eigh(hnew)
 
-    return evec[:,0]
+    return vtmp[:,0]
 

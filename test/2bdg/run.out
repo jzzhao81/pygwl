@@ -1,0 +1,12 @@
+
+ Pygwl begin @  2015-09-24 13:15:57
+
+ Read DFT input DONE !
+ Chemical potential from DFT :   -0.00000
+ Impurity level from DFT :
+[ 0.00000  0.00000  0.00000  0.00000]
+ Local particle number from DFT :
+[ 0.50000  0.50000  0.50000  0.50000]
+
+ Iter  : 1
+ Killed by KeyboardInterrupt...exiting 

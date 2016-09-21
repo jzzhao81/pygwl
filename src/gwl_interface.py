@@ -6,7 +6,7 @@ def gwl_interface():
 
     from gwl_read import read_dft, gen_bethe_kwt
     from gwl_symm import symmetry
-    from gwl_constants import isym
+    from gwl_constants import osym, asym
     from gwl_tools import chknloc
 
     np.set_printoptions(precision=3,linewidth=160,suppress=True,\
@@ -23,12 +23,19 @@ def gwl_interface():
     print " Read DFT input DONE !"
     natm = len(gatm)
 
+    # Atomic symmetry
+    atomic_symm = symmetry(asym)
+
     # Loop for atoms
     for iatm in range(natm):
         # initialize symmetry
-        gatm[iatm].osym = symmetry(np.array(isym[iatm]))
+        gatm[iatm].osym = symmetry(np.array(osym[iatm]))
 
-    for iatm in range(natm):
+
+    # Generate Eimp, Nloc, atomic eigenstate
+    for isym in range(atomic_symm.nsym):
+
+        iatm = atomic_symm.indx[isym][0]
 
         # generate impurity energy level
         gatm[iatm].eimp = gatm[iatm].geneimp(gatm[iatm].eigs, gatm[iatm].smat)
@@ -45,17 +52,21 @@ def gwl_interface():
         # Double counting
         gatm[iatm].udc  = gatm[iatm].genudc(gatm[iatm].nloc)
         gatm[iatm].elm  = np.copy(gatm[iatm].udc)
-
+        for jatm in atomic_symm.indx[isym][1:]:
+            gatm[jatm].elm  = gatm[iatm].elm
+            gatm[jatm].udc  = gatm[iatm].udc
+            gatm[jatm].eimp = gatm[iatm].eimp
+            gatm[jatm].nloc = gatm[iatm].nloc
 
     print " Impurity level from DFT :"
-    for iatm in range(natm): print gatm[iatm].eimp
+    for isym in range(atomic_symm.nsym): iatm = atomic_symm.indx[isym][0]; print gatm[iatm].eimp
     print " Local particle number from DFT :", ("%10.5f") %(np.sum(gatm[iatm].nloc))
-    for iatm in range(natm): print gatm[iatm].nloc
+    for isym in range(atomic_symm.nsym): iatm = atomic_symm.indx[isym][0]; print gatm[iatm].nloc
     print " Double Counting :"
-    for iatm in range(natm): print gatm[iatm].udc
+    for isym in range(atomic_symm.nsym): iatm = atomic_symm.indx[isym][0]; print gatm[iatm].udc
 
     # Enter Gutzwiller main loop
-    gatm = gwl_mainloop(gatm)
+    gatm = gwl_mainloop(gatm, atomic_symm)
 
     # Dump Gutzwiller results
     gwl_dumprslt(gatm)
@@ -63,7 +74,7 @@ def gwl_interface():
     return error
 
 
-def gwl_mainloop(gatm):
+def gwl_mainloop(gatm, atomic_symm):
 
     import sys
     from scipy import optimize
@@ -76,9 +87,9 @@ def gwl_mainloop(gatm):
     for iatm in range(natm):
         ini.append(np.append(gatm[iatm].elm,gatm[iatm].qre))
     ini = np.array(ini)
-    print
 
-    outr = lambda enq : gwl_outerloop(enq, gatm)
+    print
+    outr = lambda enq : gwl_outerloop(enq, gatm, atomic_symm)
     if   mixer.keys()[0] == 'broyden1' :
         rslt = optimize.root(outr,ini,method='broyden1',\
         options={'maxiter':mixer.values()[0][0],'ftol':mixer.values()[0][1],\
@@ -97,17 +108,15 @@ def gwl_mainloop(gatm):
         print rslt
         print  " Pygwl main does not converge !\n Try another mixer method !\n"
 
-
     for iatm in range(natm):
         gatm[iatm].elm = rslt.x[iatm][:gatm[iatm].norb]
         gatm[iatm].qre = rslt.x[iatm][gatm[iatm].norb:]
 
     return gatm
 
-def gwl_outerloop(inp, gatm):
+def gwl_outerloop(inp, gatm, atomic_symm):
 
     from gwl_ksum import gwl_ksum
-    from gwl_core import gwl_core
 
     # number of atoms from input
     natm = len(gatm)
@@ -127,18 +136,31 @@ def gwl_outerloop(inp, gatm):
     gatm = gwl_ksum(gatm)
 
     # inner loop
-    diff = []
-    for iatm in range(natm):
+
+    for isym in range(atomic_symm.nsym):
+
+        # atomic index
+        iatm = atomic_symm.indx[isym][0]
 
         print ' Inner loop for atom :', iatm+1
+        # Gutzwiller inner loop
         gatm[iatm].gwl_core()
 
-        diff = np.append(diff, np.append(gatm[iatm].elm-eold[iatm],gatm[iatm].qre-qold[iatm]))
-
+        # Update iteration number
         gatm[iatm].iter += 1
+
+        # Print diff with last loop
         print " diff :"
         print gatm[iatm].elm-eold[iatm]
         print gatm[iatm].qre-qold[iatm]
+        # Spread Elm & Qre
+        for jatm in atomic_symm.indx[isym][1:]:
+            gatm[jatm].elm = gatm[iatm].elm
+            gatm[jatm].qre = gatm[iatm].qre
+
+    diff = []
+    for iatm in range(natm):
+        diff = np.append(diff, np.append(gatm[iatm].elm-eold[iatm],gatm[iatm].qre-qold[iatm]))
 
     return diff
 
@@ -147,6 +169,8 @@ def gwl_dumprslt(gatm):
     # number of correlated atoms
     natm = len(gatm)
 
+    print
+    print
     print ' Final results : '
     print ' Elm :'
     for iatm in range(natm):

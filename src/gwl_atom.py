@@ -6,7 +6,7 @@ from gwl_tools import prjloc
 
 class corr_atom:
 
-    def __init__(self, nkpt=1, nbnd=1, norb=1, ntot=0.0):
+    def __init__(self, nkpt=1, nbnd=1, norb=1, ntot=0.0, true_atom=True):
         self.nkpt = nkpt
         self.nbnd = nbnd
         self.norb = norb
@@ -19,15 +19,17 @@ class corr_atom:
         self.eimp = np.zeros(self.norb, dtype=np.float)
         self.eigs = np.zeros((self.nkpt,self.nbnd), dtype=np.float)
         self.kwt  = np.repeat(1.0/np.float(nkpt), nkpt)
+        self.iter = 1
         self.elm  = np.zeros(self.norb, dtype=np.float )
         self.udc  = np.zeros(self.norb, dtype=np.float )
         self.qre  = np.ones(self.norb, dtype=np.float )
-        self.dedr = np.zeros(self.norb, dtype=np.float)
-        self.aeig = np.zeros(self.ncfg, dtype=np.float)
-        self.avec = np.zeros((self.ncfg,self.ncfg), dtype=np.complex)
-        self.uj   = np.zeros(5, dtype=np.float)
-        self.symm = symmetry()
-        self.iter = 1
+        # if true_atom :
+        #     self.dedr = np.zeros(self.norb, dtype=np.float)
+        #     self.aeig = np.zeros(self.ncfg, dtype=np.float)
+        #     self.avec = np.zeros((self.ncfg,self.ncfg), dtype=np.complex)
+        #     self.uj   = np.zeros(5, dtype=np.float)
+        #     self.symm = symmetry()
+
 
     def geneimp(self,eigs,smat):
         from gwl_tools import chkrnd
@@ -74,13 +76,14 @@ class corr_atom:
 
         norb   = nloc.shape[0]
         udc    = np.zeros(norb, dtype=np.float)
-        udc[:] = self.uj[0]*(nudc-0.5)-self.uj[2]*(nudc-0.5)
+        udc[:] = self.uj[0]*(nudc-0.5)-self.uj[2]*(0.5*nudc-0.5)
         return udc
 
     def eigenstate(self):
         from atm_hmat import atom_umat, atom_hmat, dump_eigs
         from gwl_constants import u, j
         from scipy import linalg
+        self.uj    = np.zeros(5, dtype=np.float)
         self.uj[0] = u; self.uj[1] = u-2.0*j
         self.uj[2] = j; self.uj[3] = j; self.uj[4] = j
         umat = atom_umat(self.norb,self.uj)

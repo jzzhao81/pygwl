@@ -28,7 +28,7 @@ def read_dft(filename_enk, filename_ovlp):
     ovlp = (data[:,0] + 1j*data[:,1]).reshape(nkpt,norb*natm,nbnd)
 
     # search chemical potential
-    kwt = np.repeat(1.0/np.float(nkpt), nkpt)
+    kwt  = np.repeat(1.0/np.float(nkpt), nkpt)
     mu_orig  = searchmu(eigs, ntot, kwt)
     print
     print " Chemical potential from DFT :", ("%10.5f") %(mu_orig)

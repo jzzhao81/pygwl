@@ -8,12 +8,12 @@ def gwl_ksum(gatm):
     from gwl_tools     import chkherm, chkrnd, chknloc, prjblh, prjloc, genfdis, searchmu
     from gwl_atom      import corr_atom
     from gwl_symm      import symmetry
-    from gwl_constants import isym
+    from gwl_constants import osym
 
     natm = len(gatm)
     norb = np.sum( [gatm[iatm].norb for iatm in range(natm)] )
 
-    fatm = corr_atom(gatm[0].nkpt,gatm[0].nbnd,norb,gatm[0].ntot)
+    fatm = corr_atom(gatm[0].nkpt,gatm[0].nbnd,norb,gatm[0].ntot,False)
 
     fatm.eigs = np.copy( gatm[0].eigs )
     fatm.smat = np.copy( gatm[0].smat )
@@ -36,7 +36,7 @@ def gwl_ksum(gatm):
     # initialize symmetry
     sym = []
     for iatm in range(natm):
-        sym.append(np.array(isym[iatm]+np.repeat(np.sum([gatm[iatm].norb for iatm in range(iatm)]),gatm[iatm].norb),dtype=np.int))
+        sym.append(np.array(osym[iatm]+np.repeat(np.sum([gatm[iatm].norb for iatm in range(iatm)]),gatm[iatm].norb),dtype=np.int))
     sym = np.array(sym).reshape(-1)
     fatm.osym = symmetry(np.array(sym))
 
@@ -111,11 +111,14 @@ def gwl_ksum(gatm):
 
     if not(chkrnd(emat)) : sys.exit(" dEdR should be REAL & DIAGONAL in gwl_ksum !\n")
     fatm.dedr = np.diag(emat).real
+    fatm.dedr = fatm.osym.symmetrize(fatm.dedr)
 
+    # Update dedr & nloc
     for iatm in range(natm):
         start = np.sum([gatm[ii].norb for ii in range(iatm)],dtype=np.int)
         stop  = start + gatm[iatm].norb
         gatm[iatm].dedr = fatm.dedr[start:stop]
+        gatm[iatm].nloc = fatm.nloc[start:stop]
         # make dEdR symmetrize
         # gatm[iatm].dedr = gatm[iatm].symm.symmetrize(gatm[iatm].dedr)
 
